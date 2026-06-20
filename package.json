@@ -1,0 +1,35 @@
+{
+  "name": "n8n-proxy-auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsup src/pomerium-session-hook.ts --format cjs --target node20 --platform node --sourcemap --dts --clean --out-dir dist",
+    "check": "corepack pnpm run typecheck && corepack pnpm run lint && corepack pnpm run format && corepack pnpm run test && corepack pnpm run build",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "hooks:install": "./scripts/install-githooks.sh",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "6.2.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.9.3",
+    "eslint": "10.5.0",
+    "globals": "17.6.0",
+    "prettier": "3.8.4",
+    "tsup": "8.5.1",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.61.1",
+    "vitest": "4.1.9"
+  }
+}
