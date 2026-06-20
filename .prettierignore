@@ -7,3 +7,4 @@ pnpm-lock.yaml
 e2e/.generated.env
 e2e/.generated-keys.json
 e2e/mock-jwks/jwks.json
+e2e/pomerium/.generated/

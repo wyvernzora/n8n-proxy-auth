@@ -1,0 +1,44 @@
+# TEMPLATE for the OPTIONAL real-Pomerium e2e smoke (P4) Dex (static OIDC IdP) config.
+#
+# e2e/gen-pomerium.ts renders this into e2e/pomerium/.generated/dex.yaml, substituting the password
+# hash placeholder below with a freshly computed bcrypt hash of POMERIUM_TEST_PASSWORD so the
+# credential is guaranteed self-consistent (no hand-fabricated hash committed). The compose stack
+# mounts the GENERATED file, never this template.
+#
+# One static user, one static client (Pomerium). No external IdP, no persistence.
+# Dex serves OIDC discovery at https://dex.pomerium.localhost:5556/dex/.well-known/openid-configuration
+# Pomerium is the OAuth client; the route policy authenticates the single static user below.
+
+issuer: https://dex.pomerium.localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  https: 0.0.0.0:5556
+  tlsCert: /tls/tls-cert.pem
+  tlsKey: /tls/tls-key.pem
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: pomerium
+    name: Pomerium
+    secret: pomerium-e2e-secret
+    redirectURIs:
+      # Pomerium's OIDC callback lives on the ON-CLUSTER authenticate host:port
+      # (authenticate_service_url in config.yaml, published as 8443), so the redirect URI Dex
+      # authorizes must be exactly that host:port — not the route host, and the :8443 must match.
+      - https://authenticate.pomerium.localhost:8443/oauth2/callback
+
+# Enable the password (resource-owner) connector so a browser/Playwright login can complete against
+# a single fixed identity. NOTE: Pomerium uses the OIDC authorization-code flow, so a real session
+# requires driving Dex's login form (browser/Playwright), not a single curl POST.
+enablePasswordDB: true
+staticPasswords:
+  - email: p4-user@pomerium.e2e.test
+    # Freshly generated bcrypt hash of POMERIUM_TEST_PASSWORD (substituted by gen-pomerium.ts).
+    hash: '__DEX_PASSWORD_HASH__'
+    username: p4-user
+    userID: 'p4-user-00000000-0000-0000-0000-000000000001'

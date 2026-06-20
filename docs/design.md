@@ -280,15 +280,15 @@ members. The hook does **not** try to make the first Pomerium user the owner. ([
 
 Provisional env surface (prefix open — [§14](#14-open-decisions) D5). Simple single-issuer/preset form:
 
-| Env var                         | Default                    | Meaning                                                              |
-| ------------------------------- | -------------------------- | -------------------------------------------------------------------- |
-| `N8N_PROXY_AUTH_JWKS_URL`       | —                          | JWKS URI (Pomerium: `https://<host>/.well-known/pomerium/jwks.json`) |
-| `N8N_PROXY_AUTH_ISSUER`         | —                          | expected `iss` (allow-list of one)                                   |
-| `N8N_PROXY_AUTH_AUDIENCE`       | —                          | expected `aud` (route hostname for Pomerium)                         |
-| `N8N_PROXY_AUTH_ALGORITHMS`     | `ES256`                    | pinned algorithm allow-list (comma-sep)                              |
-| `N8N_PROXY_AUTH_HEADER`         | `x-pomerium-jwt-assertion` | source header(s), comma-sep, ordered                                 |
-| `N8N_PROXY_AUTH_EMAIL_CLAIM`    | `email`                    | identity claim                                                       |
-| `N8N_PROXY_AUTH_AUTO_PROVISION` | `true`                     | JIT-create unknown users                                             |
+| Env var                         | Default                    | Meaning                                                                                                                                                                                                                                                           |
+| ------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `N8N_PROXY_AUTH_JWKS_URL`       | —                          | JWKS URI (Pomerium: `https://<host>/.well-known/pomerium/jwks.json`)                                                                                                                                                                                              |
+| `N8N_PROXY_AUTH_ISSUER`         | —                          | expected `iss` (allow-list of one). Pomerium carries the **route host** as `iss` in recent releases (older docs say the authenticate domain); set it to whatever a **live** token from your deployment carries — capture it with `scripts/e2e.pomerium.sh` (§14). |
+| `N8N_PROXY_AUTH_AUDIENCE`       | —                          | expected `aud` — the **route host** for Pomerium. Mandatory (non-empty) on the env/deploy path; confirm the exact literal against a live token (§14).                                                                                                             |
+| `N8N_PROXY_AUTH_ALGORITHMS`     | `ES256`                    | pinned algorithm allow-list (comma-sep)                                                                                                                                                                                                                           |
+| `N8N_PROXY_AUTH_HEADER`         | `x-pomerium-jwt-assertion` | source header(s), comma-sep, ordered                                                                                                                                                                                                                              |
+| `N8N_PROXY_AUTH_EMAIL_CLAIM`    | `email`                    | identity claim                                                                                                                                                                                                                                                    |
+| `N8N_PROXY_AUTH_AUTO_PROVISION` | `true`                     | JIT-create unknown users                                                                                                                                                                                                                                          |
 
 Advanced multi-issuer form: `N8N_PROXY_AUTH_ISSUERS=<path-to-json>` pointing at a file of
 `TrustedIssuer[]`. The simple vars are sugar that desugar to a one-element registry.
@@ -508,5 +508,17 @@ Resolved 2026-06-19. Recorded here as the rationale of record.
 | **D5** | Registry / Renovate / env prefix      | **GHCR**, **Mend-hosted Renovate app**, env prefix `N8N_PROXY_AUTH_` (all low-stakes, revisitable).                                                                                                                                                                                                              |
 | **D6** | Cookie/identity-switch reconciliation | **Resolve the existing `n8n-auth` cookie via the public side-effect-free `AuthService.validateCookieToken(token)` and re-issue when the Pomerium identity differs** (consistent with D1; closes the shared-browser/identity-switch gap). Not `resolveJwt` — it enforces `browserId` and writes a refresh cookie. |
 
-> Empirical TODO before shipping the Pomerium preset: confirm the real `iss` (authenticate domain
-> vs route host) and exact `aud` from a live Pomerium token — the docs phrase both loosely.
+> **Empirical capture (resolved by the optional P4 smoke, not pre-decided).** The real `iss`
+> (authenticate domain vs route host) and exact `aud` are confirmed by capturing them from a
+> **live** Pomerium token, never assumed. `scripts/e2e.pomerium.sh` stands up real Pomerium + a
+> static OIDC IdP (Dex), obtains a Pomerium session, reads the raw assertion from `/.pomerium/jwt`,
+> and **decodes + records** the literal `iss`, `aud`, and `alg` plus the JWKS path. The recorded
+> values are an **output** of that run, not an input: the working hypothesis wired into
+> `e2e/docker-compose.pomerium.yml` is `iss`/`aud` = the **bare route host** (no scheme/trailing
+> slash — matching Pomerium's default `jwt_issuer_format: IssuerHostOnly`, which emits both `iss`
+> and `aud` as the bare hostname), and the runner asserts a live assertion actually authenticates
+> n8n under that wiring. **Only if** the captured token shows
+> the values differ from that hypothesis do we reconcile the preset JSDoc and this section to the
+> captured literals — collapsing `iss` and `aud` to a single value **only** when a live token
+> actually shows `iss == aud`. The locked security invariants are unchanged regardless: the
+> env/deploy path keeps a **mandatory non-empty audience** and **ES256** algorithm pinning.

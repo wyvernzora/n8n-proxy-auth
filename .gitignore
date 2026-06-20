@@ -13,6 +13,9 @@ e2e/.generated.env
 e2e/.generated-keys.json
 e2e/mock-jwks/jwks.json
 
+# P4 optional real-Pomerium secrets + TLS material (generated per run; zero PEM bytes committed)
+e2e/pomerium/.generated/
+
 # build orchestration + working notes (local-only)
 .claude/
 .checkpoint/
