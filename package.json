@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "tsup src/pomerium-session-hook.ts --format cjs --target node20 --platform node --sourcemap --dts --clean --out-dir dist",
+    "build": "tsup",
     "check": "corepack pnpm run typecheck && corepack pnpm run lint && corepack pnpm run format && corepack pnpm run test && corepack pnpm run build",
     "format": "prettier --check .",
     "format:write": "prettier --write .",

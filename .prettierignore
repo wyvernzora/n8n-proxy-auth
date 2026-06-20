@@ -2,3 +2,8 @@ node_modules/
 dist/
 coverage/
 pnpm-lock.yaml
+.claude/
+.checkpoint/
+e2e/.generated.env
+e2e/.generated-keys.json
+e2e/mock-jwks/jwks.json

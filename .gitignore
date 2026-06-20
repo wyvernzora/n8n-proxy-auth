@@ -7,3 +7,12 @@ coverage/
 !.env.example
 .DS_Store
 *.log
+
+# e2e generated artifacts (fresh keys + env per run; zero key bytes committed)
+e2e/.generated.env
+e2e/.generated-keys.json
+e2e/mock-jwks/jwks.json
+
+# build orchestration + working notes (local-only)
+.claude/
+.checkpoint/

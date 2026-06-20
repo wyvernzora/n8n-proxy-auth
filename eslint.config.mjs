@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['coverage/**', 'dist/**', 'node_modules/**'],
+    ignores: ['coverage/**', 'dist/**', 'node_modules/**', '.claude/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
@@ -15,7 +15,7 @@ export default defineConfig(
       globals: globals.node,
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.mjs'],
+          allowDefaultProject: ['eslint.config.mjs', 'tsup.config.ts'],
         },
         tsconfigRootDir: import.meta.dirname,
       },

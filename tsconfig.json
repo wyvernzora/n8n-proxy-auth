@@ -20,5 +20,12 @@
     "types": ["node", "vitest/globals"],
     "verbatimModuleSyntax": true
   },
-  "include": ["eslint.config.mjs", "src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "eslint.config.mjs",
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "e2e/**/*.ts",
+    "vitest.config.ts",
+    "vitest.e2e.config.ts"
+  ]
 }

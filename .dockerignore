@@ -1,0 +1,3 @@
+# Only the built hook artifact enters the build context.
+*
+!dist/hook.cjs
