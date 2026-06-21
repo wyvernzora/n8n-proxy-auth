@@ -1,13 +1,19 @@
 # Hermetic e2e topology. Brought up by scripts/e2e.sh.
 #
 #   mock-jwks : stock nginx serving the GENERATED public JWKS at http://mock-jwks/jwks.json
-#   n8n       : the PATCHED image (built from the repo Dockerfile), trusting the test issuer
+#   hook      : one-shot artifact installer image, copies hook.cjs into the shared volume
+#   n8n       : official n8n image, trusting the test issuer and loading the mounted hook
 #
 # iss/aud/jwks come ONLY from e2e/.generated.env (generated from e2e/constants.ts), so the
 # host driver and the container cannot drift. NODE_ENV is left UNSET (never 'test', which
 # would make abstract-server skip the splice). The default `start` command is NOT overridden.
 
 services:
+  hook:
+    image: ${HOOK_IMAGE:-n8n-proxy-auth-hook:test}
+    volumes:
+      - proxy-auth-hook:/out
+
   mock-jwks:
     image: nginx:alpine
     volumes:
@@ -15,17 +21,26 @@ services:
     # No published port — reachable only by the n8n container via compose DNS.
 
   n8n:
-    image: ${N8N_IMAGE:-n8n-proxy-auth:test}
+    image: ${N8N_IMAGE:-n8nio/n8n:2.26.8}
     depends_on:
-      - mock-jwks
+      hook:
+        condition: service_completed_successfully
+      mock-jwks:
+        condition: service_started
     env_file:
       - .generated.env
     environment:
       DB_TYPE: sqlite
+      EXTERNAL_HOOK_FILES: /opt/proxy-auth/hook.cjs
       N8N_DIAGNOSTICS_ENABLED: 'false'
       N8N_USER_FOLDER: /tmp/n8n
       # Optional fault injection for the S12 boot-survival scenario. Defaults to empty
       # (off); scripts/e2e.sh sets it only for the forced-skip run. NEVER baked into the image.
       N8N_PROXY_AUTH_FORCE_NO_COOKIEPARSER: ${N8N_PROXY_AUTH_FORCE_NO_COOKIEPARSER:-}
+    volumes:
+      - proxy-auth-hook:/opt/proxy-auth:ro
     ports:
       - '5699:5678'
+
+volumes:
+  proxy-auth-hook:

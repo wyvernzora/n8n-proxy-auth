@@ -1,0 +1,165 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, for example v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+          else
+            version="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "$version" =~ ^v[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+            echo "version must look like v0.1.0, got $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release commit is on main with passing CI
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git fetch --force --no-tags origin \
+            "+refs/tags/$VERSION:refs/tags/$VERSION" \
+            +refs/heads/main:refs/remotes/origin/main
+
+          tagged_sha="$(git rev-parse "$VERSION^{commit}")"
+          if ! git merge-base --is-ancestor "$tagged_sha" origin/main; then
+            echo "::error::Release tag $VERSION points to $tagged_sha, which is not reachable from origin/main."
+            exit 1
+          fi
+
+          ci_run_url="$(
+            gh api "repos/$REPOSITORY/actions/workflows/build-test-publish.yml/runs" \
+              --method GET \
+              -f branch=main \
+              -f event=push \
+              -f head_sha="$tagged_sha" \
+              -f status=completed \
+              --jq '.workflow_runs[] | select(.conclusion == "success") | .html_url' |
+              head -n 1
+          )"
+          if [ -z "$ci_run_url" ]; then
+            echo "::error::Release commit $tagged_sha does not have a successful completed build-test-publish.yml push run on main."
+            exit 1
+          fi
+
+          git checkout --detach "$tagged_sha"
+          echo "tagged_sha=$tagged_sha" >> "$GITHUB_OUTPUT"
+          echo "Release commit $tagged_sha is on main and passed CI: $ci_run_url"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm run check
+      - name: Ensure hook artifact built
+        run: test -f dist/hook.cjs || { echo "::error::dist/hook.cjs missing after build"; exit 1; }
+
+      - name: Package release tarball
+        id: package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release-assets/n8n-proxy-auth-hook
+          cp dist/hook.cjs release-assets/n8n-proxy-auth-hook/hook.cjs
+          tarball="release-assets/n8n-proxy-auth-hook-$VERSION.tar.gz"
+          tar -C release-assets -czf "$tarball" n8n-proxy-auth-hook
+          (cd release-assets && sha256sum "$(basename "$tarball")" > "$(basename "$tarball").sha256")
+          {
+            echo "tarball=$tarball"
+            echo "sha256=$tarball.sha256"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Derive image metadata
+        id: meta
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "image=ghcr.io/$owner/n8n-proxy-auth-hook"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push release image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.gate.outputs.tagged_sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.description=n8n proxy-auth external hook artifact
+          provenance: true
+          sbom: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TARBALL: ${{ steps.package.outputs.tarball }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "GitHub release $VERSION already exists."
+            gh release upload "$VERSION" "$TARBALL" "$SHA256" --clobber
+            exit 0
+          fi
+
+          gh release create "$VERSION" \
+            "$TARBALL" \
+            "$SHA256" \
+            --title "$VERSION" \
+            --generate-notes \
+            --verify-tag

@@ -1,6 +1,6 @@
 /**
  * Single source of truth for the OPTIONAL real-Pomerium smoke (P4). Non-gating: this stack
- * runs real Pomerium + a static OIDC IdP (Dex) in front of the patched n8n, to catch drift in
+ * runs real Pomerium + a static OIDC IdP (Dex) in front of hooked n8n, to catch drift in
  * the real Pomerium iss/aud/JWKS specifics the mock-JWKS gate cannot.
  *
  * IMPORTANT (per the locked design's empirical TODO): the literal `iss` and `aud` carried by a
@@ -33,7 +33,7 @@ export const POMERIUM_TEST_PASSWORD = 'Pomerium-P4-123';
 export const POMERIUM_HTTPS_PORT = 8443;
 
 /**
- * Diagnostic-only: the patched n8n is host-published on a SEPARATE port ONLY for the negative
+ * Diagnostic-only: n8n is host-published on a SEPARATE port ONLY for the negative
  * direct-bypass assertion (a self-supplied header sent straight to n8n must NOT authenticate).
  */
 export const N8N_DIAGNOSTIC_PORT = 5710;

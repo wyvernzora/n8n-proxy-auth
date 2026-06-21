@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # OPTIONAL real-Pomerium smoke (P4). NON-GATING — NOT wired into CI or the mock-JWKS gate.
-# Stands up real Pomerium + Dex (static OIDC IdP) in front of the patched n8n image, captures a
-# LIVE Pomerium-minted assertion, records its real iss/aud/alg/JWKS path, and proves a real
-# assertion authenticates into n8n.
+# Stands up real Pomerium + Dex (static OIDC IdP) in front of official n8n with the hook mounted
+# from the artifact image, captures a LIVE Pomerium-minted assertion, records its real
+# iss/aud/alg/JWKS path, and proves a real assertion authenticates into n8n.
 #
 # Tiered exit criteria. The split is honest about what is session-INDEPENDENT (truly deterministic)
 # vs what needs a real Pomerium session (only as reliable as the OIDC login it depends on):
@@ -18,7 +18,7 @@
 #     (f) programmatically complete the OIDC login THROUGH Pomerium ($OIDC_LOGIN_ATTEMPTS tries);
 #     (b) for that session, read the raw Pomerium-minted x-pomerium-jwt-assertion from /.pomerium/jwt;
 #     (e) decode + record its literal iss/aud/alg + JWKS path;
-#     (c) feed that EXACT live token directly to the patched n8n (diagnostic port) and assert
+#     (c) feed that EXACT live token directly to n8n (diagnostic port) and assert
 #         Set-Cookie n8n-auth is present AND /rest/login returns 200 + user body;
 #     (g) drive a /rest/login probe THROUGH real Pomerium and assert Set-Cookie n8n-auth + 200.
 #
@@ -28,14 +28,16 @@
 # PASSES on the mandatory tier and the live-token + through-Pomerium positives are documented-skip
 # (capture them manually per docs/maintenance.md, or via the optional Playwright UI smoke).
 #
-#   usage: scripts/e2e.pomerium.sh [image-tag]   (default: n8n-proxy-auth:test)
+#   usage: scripts/e2e.pomerium.sh [hook-image-tag]   (default: n8n-proxy-auth-hook:test)
 set -euo pipefail
 
-IMAGE_TAG="${1:-n8n-proxy-auth:test}"
+HOOK_IMAGE_TAG="${1:-n8n-proxy-auth-hook:test}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT/e2e/docker-compose.pomerium.yml"
 PROJECT="n8n-proxy-auth-p4"
 GEN_DIR="$ROOT/e2e/pomerium/.generated"
+N8N_TEST_VERSION="${N8N_TEST_VERSION:-$(tr -d '[:space:]' < "$ROOT/e2e/n8n-version")}"
+N8N_IMAGE="${N8N_IMAGE:-n8nio/n8n:$N8N_TEST_VERSION}"
 ROUTE_HOST="n8n.pomerium.localhost"
 DIAG_BASE="http://localhost:5710"
 OWNER_EMAIL="owner@e2e.test"
@@ -43,7 +45,7 @@ OWNER_PASSWORD="Owner-Setup-123"
 OIDC_LOGIN_ATTEMPTS="${OIDC_LOGIN_ATTEMPTS:-3}"
 
 compose() {
-  N8N_IMAGE="$IMAGE_TAG" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
+  HOOK_IMAGE="$HOOK_IMAGE_TAG" N8N_IMAGE="$N8N_IMAGE" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
 }
 
 teardown() {
@@ -57,13 +59,13 @@ fail() {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Build hook + the patched image + generate Pomerium secrets/TLS.
+# 1. Build hook + the artifact image + generate Pomerium secrets/TLS.
 # ---------------------------------------------------------------------------
 echo "==> Building dist/hook.cjs"
 ( cd "$ROOT" && corepack pnpm run build )
 
-echo "==> Building patched image $IMAGE_TAG"
-docker build -t "$IMAGE_TAG" "$ROOT"
+echo "==> Building hook artifact image $HOOK_IMAGE_TAG"
+docker build -t "$HOOK_IMAGE_TAG" "$ROOT"
 
 echo "==> Generating Pomerium signing key + TLS + secrets (gitignored)"
 ( cd "$ROOT" && corepack pnpm exec tsx e2e/gen-pomerium.ts )
@@ -105,6 +107,8 @@ wait_for "$DIAG_BASE/healthz/readiness" "n8n readiness (diagnostic port)"
 echo "==> [mandatory] In-container HTTPS JWKS fetch (TLS trust + DNS)"
 N8N_CID="$(compose ps -q n8n)"
 [ -n "$N8N_CID" ] || fail "n8n container not found"
+docker exec "$N8N_CID" test -f /opt/proxy-auth/hook.cjs \
+  || fail "hook artifact is not mounted at /opt/proxy-auth/hook.cjs"
 docker exec "$N8N_CID" node -e "
   fetch('https://$ROUTE_HOST/.well-known/pomerium/jwks.json')
     .then(r => { if (!r.ok) { console.error('status', r.status); process.exit(1); } return r.json(); })

@@ -4,7 +4,7 @@
  * no-unsafe patterns so it stays strictTypeChecked-clean inside `corepack pnpm run check`.
  *
  * This generator is for the NON-GATING higher-fidelity smoke (P4): real Pomerium + a static
- * OIDC IdP (Dex) fronting the patched n8n image. None of this feeds the required mock-JWKS gate.
+ * OIDC IdP (Dex) fronting n8n with the hook mounted. None of this feeds the required mock-JWKS gate.
  *
  * Outputs (ALL under e2e/pomerium/.generated/, gitignored — zero secret/PEM bytes committed):
  *   - signing-key.pem        Pomerium's ES256 assertion signing key (the trust anchor whose

@@ -4,10 +4,10 @@
  * generated env_file), so iss/aud/jwksUri cannot drift between the two sides.
  */
 
-/** The allow-listed issuer the patched n8n is configured to trust. */
+/** The allow-listed issuer the hook configures n8n to trust. */
 export const TEST_ISSUER = 'https://issuer.e2e.test';
 
-/** The audience the patched n8n is configured to require. */
+/** The audience the hook configures n8n to require. */
 export const TEST_AUDIENCE = 'n8n.e2e.test';
 
 /** Pinned algorithm — asymmetric, JWKS-verifiable. */
@@ -23,7 +23,7 @@ export const UNPINNED_ALGORITHM = 'RS256';
 /** Compose-DNS URL the n8n container uses to fetch the mock JWKS (plain HTTP). */
 export const MOCK_JWKS_URL = 'http://mock-jwks/jwks.json';
 
-/** Base URL the host driver uses to reach the patched n8n (published port). */
+/** Base URL the host driver uses to reach n8n (published port). */
 export const N8N_PORT = 5699;
 export const N8N_BASE_URL = `http://localhost:${String(N8N_PORT)}`;
 

@@ -15,14 +15,16 @@ corepack pnpm run check
 `pnpm run check` runs typecheck, ESLint, Prettier, unit tests, and the `tsup` build.
 
 The bundle must remain a single self-contained CommonJS file at `dist/hook.cjs`. `jose` is bundled
-into that file because the Docker image copies only `dist/hook.cjs` into `/opt/proxy-auth/`.
+into that file because deployed n8n containers mount only the hook artifact, not this repo's
+`node_modules`.
 
 ## Real-Image E2E Gate
 
-The required e2e check builds the image and runs n8n against a mock JWKS service:
+The required e2e check builds the hook artifact image and runs official n8n against a mock JWKS
+service:
 
 ```sh
-./scripts/e2e.sh n8n-proxy-auth:test
+./scripts/e2e.sh n8n-proxy-auth-hook:test
 ```
 
 This is the load-bearing regression contract. It covers:
@@ -44,7 +46,7 @@ fixing the hook or surfacing the incompatibility before weakening the scenario.
 For higher fidelity against real Pomerium and Dex:
 
 ```sh
-./scripts/e2e.pomerium.sh n8n-proxy-auth:test
+./scripts/e2e.pomerium.sh n8n-proxy-auth-hook:test
 ```
 
 This smoke is non-gating. It uses:
@@ -70,7 +72,7 @@ If scripted login cannot obtain a session, manually capture a token:
 The optional Playwright UI smoke under `e2e/playwright/` is intentionally outside the default
 toolchain and has no repo dependency on `@playwright/test`.
 
-## CI And Publishing
+## CI
 
 `.github/workflows/build-test-publish.yml` has one job named `e2e`.
 
@@ -78,20 +80,35 @@ On pull requests it:
 
 1. installs dependencies;
 2. runs `pnpm check`;
-3. builds the Docker image as `n8n-proxy-auth:test`;
-4. runs `./scripts/e2e.sh n8n-proxy-auth:test`.
+3. builds the hook artifact image as `n8n-proxy-auth-hook:test`;
+4. runs `./scripts/e2e.sh n8n-proxy-auth-hook:test` against official n8n.
 
-On push to `main` or `workflow_dispatch`, after the same checks, it publishes a multi-arch image to
-GHCR:
+On push to `main` or `workflow_dispatch`, it runs the same checks without publishing. Release tags
+are the only publishing path.
 
-```text
-ghcr.io/<owner>/n8n-proxy-auth:<N8N_VERSION>
-ghcr.io/<owner>/n8n-proxy-auth:latest
+## Releases
+
+Releases are tag-driven through `.github/workflows/release.yaml`.
+
+Create an annotated semver tag on a commit that is already on `main` and has a successful
+`build-test-publish.yml` push run:
+
+```sh
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
-The workflow uses `GITHUB_TOKEN` with `packages: write`; no PAT is required. The first publish
-creates the GHCR package. Afterward, set package visibility and connect it to the repository in
-GitHub package settings.
+The release workflow verifies the tag points at `origin/main`, verifies the existing e2e gate passed
+for that exact commit, rebuilds the hook, publishes:
+
+```text
+ghcr.io/<owner>/n8n-proxy-auth-hook:v0.1.0
+n8n-proxy-auth-hook-v0.1.0.tar.gz
+```
+
+and creates the GitHub release. The tarball contains `n8n-proxy-auth-hook/hook.cjs` plus a sibling
+`.sha256` checksum asset. `workflow_dispatch` is available for rerunning an existing tag by passing
+the same `vX.Y.Z` version.
 
 ## Branch Protection
 
@@ -104,12 +121,14 @@ If the workflow job name changes, update branch protection at the same time.
 
 ## Renovate
 
-`renovate.json` tracks the `ARG N8N_VERSION` line in the Dockerfile.
+`renovate.json` tracks `e2e/n8n-version`, which is the official n8n image version used by the
+compatibility e2e harness. This is not a shipped version pin; consuming IaC should pin both
+`n8nio/n8n` and `ghcr.io/<owner>/n8n-proxy-auth-hook` directly.
 
 Current policy:
 
-- follow stable semver n8n tags only;
-- pin base-image digests;
+- follow stable semver n8n tags for the compatibility harness;
+- pin Docker digests where Renovate can see image references;
 - automerge only after required checks are green;
 - use the Mend-hosted Renovate GitHub App.
 

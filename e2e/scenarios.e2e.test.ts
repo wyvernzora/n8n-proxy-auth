@@ -1,11 +1,11 @@
 /**
  * The executable spec. The host driver plays an identity-aware proxy: it mints ES256 JWTs
- * with the trusted private key and drives the patched n8n over HTTP. Every scenario
+ * with the trusted private key and drives n8n over HTTP. Every scenario
  * probes a single endpoint (PROBE_PATH) so 200-with-expected-email vs 401 is the one
  * discriminator; the splice-installed signal is the dedicated probe route.
  *
  * Run ONLY by scripts/e2e.sh (vitest.e2e.config.ts), after the harness has built the
- * image, brought up compose, and seeded the owner. Authoring is red-first: SSO scenarios
+ * hook image, brought up compose, and seeded the owner. Authoring is red-first: SSO scenarios
  * fail on bare n8n; rejection scenarios pass even on bare n8n.
  */
 import { readFileSync } from 'node:fs';

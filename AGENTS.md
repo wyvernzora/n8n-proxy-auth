@@ -21,10 +21,10 @@ The canonical references are:
 ### About n8n-proxy-auth
 
 - **Name:** n8n-proxy-auth.
-- **Domain:** thin patched n8n image that lets a JWKS-backed proxy be the identity layer for self-hosted n8n Community.
+- **Domain:** external hook artifact that lets a JWKS-backed proxy be the identity layer for self-hosted n8n Community.
 - **Product shape:** one n8n external hook. No n8n source fork, no OAuth client flow, no web UI.
 - **Access model:** the proxy is the access-control gate. Verified identities are provisioned as n8n `global:member`; owner setup is out of band.
-- **Distribution:** Docker image based on upstream `n8nio/n8n`, with `/opt/proxy-auth/hook.cjs` copied in and `EXTERNAL_HOOK_FILES` set.
+- **Distribution:** GitHub release tarball plus `ghcr.io/<owner>/n8n-proxy-auth-hook:vX.Y.Z` one-shot installer image. Operators run official `n8nio/n8n` and mount the hook at `EXTERNAL_HOOK_FILES`.
 
 ### Stack
 
@@ -33,8 +33,8 @@ The canonical references are:
 - **Build:** `tsup`, single CJS artifact `dist/hook.cjs`.
 - **Verifier:** `jose` bundled into the hook artifact.
 - **Tests:** Vitest unit tests under `test/`; Docker-dependent e2e under `e2e/`.
-- **Container:** Dockerfile pins upstream n8n with `ARG N8N_VERSION`.
-- **CI:** `.github/workflows/build-test-publish.yml`, job/check name `e2e`.
+- **Container:** Dockerfile builds only the hook installer image; it must not include n8n.
+- **CI:** `.github/workflows/build-test-publish.yml`, job/check name `e2e`; tag releases via `.github/workflows/release.yaml`.
 
 ### Package map
 
@@ -53,8 +53,8 @@ The canonical references are:
 corepack pnpm install
 corepack pnpm run check
 corepack pnpm run build
-./scripts/e2e.sh n8n-proxy-auth:test
-./scripts/e2e.pomerium.sh n8n-proxy-auth:test
+./scripts/e2e.sh n8n-proxy-auth-hook:test
+./scripts/e2e.pomerium.sh n8n-proxy-auth-hook:test
 ```
 
 Use focused unit tests during iteration (`corepack pnpm exec vitest run test/hook.test.ts`). Run
@@ -66,7 +66,7 @@ hook, Dockerfile, e2e harness, CI gate, or n8n-facing behavior.
 ## 2. Invariants
 
 - Keep the shipped artifact as one CJS file: `dist/hook.cjs`.
-- Keep `jose` bundled into `dist/hook.cjs`; the Docker image does not ship `node_modules` beside the hook.
+- Keep `jose` bundled into `dist/hook.cjs`; deployed n8n containers do not mount `node_modules` beside the hook.
 - Do not add n8n as a repo dependency. n8n internals are resolved lazily inside the n8n process via the anchored `createRequire`.
 - Do not replace `AuthService.issueCookie` with hand-rolled cookie/JWT signing.
 - Do not trust plaintext identity headers. The auth boundary is a verified JWT with issuer, audience, expiry, and pinned algorithm checks.

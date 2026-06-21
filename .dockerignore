@@ -1,3 +1,5 @@
 # Only the built hook artifact enters the build context.
 *
 !dist/hook.cjs
+!scripts/
+!scripts/install-hook.sh

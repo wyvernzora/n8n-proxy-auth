@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 #
-# Hermetic e2e gate. Builds dist/hook.cjs, generates fresh keys/env, builds the patched
-# image, brings up compose (mock-jwks + patched n8n), seeds the owner, runs the scenario
-# spec, and runs the S12 forced-skip boot-survival check on a separate run. Same invocation
-# locally and in CI.
+# Hermetic e2e gate. Builds dist/hook.cjs, generates fresh keys/env, builds the hook artifact
+# image, brings up compose (mock-jwks + official n8n + one-shot hook installer), seeds the owner,
+# runs the scenario spec, and runs the S12 forced-skip boot-survival check on a separate run. Same
+# invocation locally and in CI.
 #
-#   usage: scripts/e2e.sh [image-tag]   (default: n8n-proxy-auth:test)
+#   usage: scripts/e2e.sh [hook-image-tag]   (default: n8n-proxy-auth-hook:test)
 set -euo pipefail
 
-IMAGE_TAG="${1:-n8n-proxy-auth:test}"
+HOOK_IMAGE_TAG="${1:-n8n-proxy-auth-hook:test}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT/e2e/docker-compose.yml"
+N8N_TEST_VERSION="${N8N_TEST_VERSION:-$(tr -d '[:space:]' < "$ROOT/e2e/n8n-version")}"
+N8N_IMAGE="${N8N_IMAGE:-n8nio/n8n:$N8N_TEST_VERSION}"
 BASE_URL="http://localhost:5699"
 OWNER_EMAIL="owner@e2e.test"
 OWNER_PASSWORD="Owner-Setup-123"
 
 compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
+  HOOK_IMAGE="$HOOK_IMAGE_TAG" N8N_IMAGE="$N8N_IMAGE" docker compose -f "$COMPOSE_FILE" "$@"
 }
 
 teardown() {
@@ -60,10 +62,10 @@ for forbidden in "N8N_SECURE_COOKIE=false" "N8N_PROXY_AUTH_FORCE_NO_COOKIEPARSER
 done
 
 # ---------------------------------------------------------------------------
-# 3. Build the patched image
+# 3. Build the hook artifact image
 # ---------------------------------------------------------------------------
-echo "==> Building patched image $IMAGE_TAG"
-docker build -t "$IMAGE_TAG" "$ROOT"
+echo "==> Building hook artifact image $HOOK_IMAGE_TAG"
+docker build -t "$HOOK_IMAGE_TAG" "$ROOT"
 
 # ---------------------------------------------------------------------------
 # Helpers used by both the main run and the S12 run
@@ -107,7 +109,7 @@ assert_runtime_guards() {
 # 4. Main run: bring up, seed owner, run scenarios
 # ---------------------------------------------------------------------------
 echo "==> Bringing up compose (default service)"
-N8N_IMAGE="$IMAGE_TAG" compose up -d
+compose up -d
 
 wait_for_readiness
 assert_runtime_guards
@@ -138,6 +140,8 @@ PROBE_CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: $OWNER_COOKIE" 
 
 echo "==> mock-jwks reachability from the n8n container"
 N8N_CID="$(compose ps -q n8n)"
+docker exec "$N8N_CID" test -f /opt/proxy-auth/hook.cjs \
+  || fail "hook artifact is not mounted at /opt/proxy-auth/hook.cjs"
 docker exec "$N8N_CID" wget -q -O- http://mock-jwks/jwks.json >/dev/null 2>&1 \
   || docker exec "$N8N_CID" node -e "fetch('http://mock-jwks/jwks.json').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" \
   || fail "mock-jwks not reachable from the n8n container by service DNS"
@@ -152,7 +156,7 @@ compose down -v --remove-orphans >/dev/null 2>&1 || true
 # 5. S12 boot-survival: forced cookieParser-not-found → splice SKIPPED
 # ---------------------------------------------------------------------------
 echo "==> S12 boot-survival (forced cookieParser-not-found)"
-N8N_IMAGE="$IMAGE_TAG" N8N_PROXY_AUTH_FORCE_NO_COOKIEPARSER=true compose up -d
+N8N_PROXY_AUTH_FORCE_NO_COOKIEPARSER=true compose up -d
 
 wait_for_readiness
 assert_runtime_guards

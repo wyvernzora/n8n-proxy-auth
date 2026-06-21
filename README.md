@@ -3,32 +3,92 @@
 Run upstream [n8n](https://n8n.io) behind Pomerium or another JWKS-backed
 identity-aware proxy, with the proxy as the login layer.
 
-This image is `n8nio/n8n` plus one external hook. The hook verifies a
-proxy-signed JWT, maps the verified email to an n8n user, and issues a native
-`n8n-auth` cookie through n8n's own `AuthService`.
+This project ships one external hook for upstream n8n. The hook verifies a proxy-signed JWT, maps
+the verified email to an n8n user, and issues a native `n8n-auth` cookie through n8n's own
+`AuthService`.
 
 ## Deploy
 
-### 1. Publish or build the image
+Use the official n8n distribution and provide the hook as a separate pinned artifact.
 
-CI publishes:
+Release artifacts:
 
-```sh
-docker pull ghcr.io/<owner>/n8n-proxy-auth:<n8n-version>
+```text
+ghcr.io/<owner>/n8n-proxy-auth-hook:v0.1.0
+n8n-proxy-auth-hook-v0.1.0.tar.gz
 ```
 
-For a local build:
+The OCI image is a one-shot installer. It copies `/hook.cjs` to `/out/hook.cjs` by default. The
+tarball contains the same `hook.cjs` file for non-container installs.
+
+### Standalone n8n
 
 ```sh
-corepack pnpm install
-corepack pnpm run build
-docker build -t n8n-proxy-auth:local .
+curl -fsSLO https://github.com/<owner>/n8n-proxy-auth/releases/download/v0.1.0/n8n-proxy-auth-hook-v0.1.0.tar.gz
+tar -xzf n8n-proxy-auth-hook-v0.1.0.tar.gz -C /opt
 ```
 
-The Dockerfile pins upstream n8n with `ARG N8N_VERSION`. Image tags should mirror that upstream
-version, plus `:latest` on the default branch.
+Set:
 
-### 2. Put n8n behind the proxy
+```sh
+EXTERNAL_HOOK_FILES=/opt/n8n-proxy-auth-hook/hook.cjs
+```
+
+### Docker
+
+Populate a named volume from the hook image, then mount it into the official n8n container:
+
+```sh
+docker volume create n8n-proxy-auth-hook
+docker run --rm -v n8n-proxy-auth-hook:/out ghcr.io/<owner>/n8n-proxy-auth-hook:v0.1.0
+
+docker run -d --name n8n \
+  -v n8n-proxy-auth-hook:/opt/proxy-auth:ro \
+  -e EXTERNAL_HOOK_FILES=/opt/proxy-auth/hook.cjs \
+  -e N8N_PROXY_AUTH_JWKS_URL="https://n8n.example.com/.well-known/pomerium/jwks.json" \
+  -e N8N_PROXY_AUTH_ISSUER="n8n.example.com" \
+  -e N8N_PROXY_AUTH_AUDIENCE="n8n.example.com" \
+  -e N8N_USER_MANAGEMENT_JWT_SECRET="<stable long random secret>" \
+  -e N8N_HOST="n8n.example.com" \
+  -e N8N_PROXY_HOPS=1 \
+  n8nio/n8n:<n8n-version>
+```
+
+### Kubernetes
+
+Use the hook image as an init container and mount the populated `emptyDir` into official n8n:
+
+```yaml
+volumes:
+  - name: proxy-auth-hook
+    emptyDir: {}
+
+initContainers:
+  - name: install-proxy-auth-hook
+    image: ghcr.io/<owner>/n8n-proxy-auth-hook:v0.1.0
+    volumeMounts:
+      - name: proxy-auth-hook
+        mountPath: /out
+
+containers:
+  - name: n8n
+    image: n8nio/n8n:<n8n-version>
+    env:
+      - name: EXTERNAL_HOOK_FILES
+        value: /opt/proxy-auth/hook.cjs
+      - name: N8N_PROXY_AUTH_JWKS_URL
+        value: https://n8n.example.com/.well-known/pomerium/jwks.json
+      - name: N8N_PROXY_AUTH_ISSUER
+        value: n8n.example.com
+      - name: N8N_PROXY_AUTH_AUDIENCE
+        value: n8n.example.com
+    volumeMounts:
+      - name: proxy-auth-hook
+        mountPath: /opt/proxy-auth
+        readOnly: true
+```
+
+### Put n8n behind the proxy
 
 Keep the n8n container reachable only from the proxy. Do not expose it directly to users.
 
@@ -36,22 +96,7 @@ For Pomerium, the route should inject `x-pomerium-jwt-assertion`. Do not add a r
 `remove_request_headers: [x-pomerium-jwt-assertion]`; Pomerium overwrites client-supplied copies on
 ingress, and a route strip can remove Pomerium's own signed assertion before it reaches n8n.
 
-### 3. Configure n8n
-
-Minimal Pomerium example:
-
-```sh
-docker run -d --name n8n \
-  -e N8N_PROXY_AUTH_JWKS_URL="https://n8n.example.com/.well-known/pomerium/jwks.json" \
-  -e N8N_PROXY_AUTH_ISSUER="n8n.example.com" \
-  -e N8N_PROXY_AUTH_AUDIENCE="n8n.example.com" \
-  -e N8N_USER_MANAGEMENT_JWT_SECRET="<stable long random secret>" \
-  -e N8N_HOST="n8n.example.com" \
-  -e N8N_PROXY_HOPS=1 \
-  ghcr.io/<owner>/n8n-proxy-auth:<n8n-version>
-```
-
-`EXTERNAL_HOOK_FILES=/opt/proxy-auth/hook.cjs` is baked into the image.
+### Configure n8n
 
 With Pomerium's default `jwt_issuer_format: IssuerHostOnly`, the assertion `iss` and `aud` are the
 bare route host, with no scheme or trailing slash. Confirm the exact values from a live token if
@@ -63,7 +108,7 @@ curl -fsS https://n8n.example.com/.pomerium/jwt
 
 Decode the JWT and copy the literal `iss`, `aud`, and algorithm into the env above.
 
-### 4. Complete first-run owner setup
+### Complete first-run owner setup
 
 n8n still requires the one-time owner setup. Complete that normally through n8n after the proxy is in
 front of it. After the owner exists, proxy-authenticated users are just-in-time provisioned as
@@ -107,8 +152,8 @@ Useful commands:
 
 ```sh
 corepack pnpm run check
-./scripts/e2e.sh n8n-proxy-auth:test
-./scripts/e2e.pomerium.sh n8n-proxy-auth:test
+./scripts/e2e.sh n8n-proxy-auth-hook:test
+./scripts/e2e.pomerium.sh n8n-proxy-auth-hook:test
 ```
 
 Further maintenance docs:

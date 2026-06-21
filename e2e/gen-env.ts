@@ -1,7 +1,7 @@
 /**
  * Generate the e2e fixtures fresh per run (run via `tsx e2e/gen-env.ts`):
  *
- *   - a TRUSTED ES256 keypair (the allow-listed issuer the patched n8n trusts),
+ *   - a TRUSTED ES256 keypair (the allow-listed issuer n8n trusts through the hook),
  *   - a SECOND, non-allow-listed ES256 keypair (scenario 6: validly signed, wrong issuer), and
  *   - a TRUSTED RS256 keypair whose PUBLIC key IS in the mock JWKS (scenario 5 unpinned-alg:
  *     a token whose signature verifies but whose alg is not in the pinned ES256 allow-list,
