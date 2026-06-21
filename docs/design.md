@@ -1,8 +1,10 @@
 # n8n + Pomerium identity bridge — design
 
-> Status: **decisions locked — ready to implement** (build order in [§13](#13-build-order-test-first)).
-> [§14](#14-open-decisions) records the choices taken. Findings are grounded in n8n source at
-> **2.27.x** (Express 5.1, `@n8n/di`); file paths and internal APIs below are real but
+> Status: **built & validated** — all phases (P1–P4) implemented, committed, and verified (unit +
+> real-image e2e + a real-Pomerium smoke). See the [README](../README.md) to run it and
+> [operations.md](./operations.md) to deploy; build order is [§13](#13-build-order-test-first),
+> decisions (D1–D6) are [§14](#14-open-decisions). Findings are grounded in n8n source at
+> **2.26.x/2.27.x** (Express 5.1, `@n8n/di`); file paths and internal APIs below are real but
 > upstream-version-sensitive — see [§11](#11-upgrade-fragility-strategy).
 
 ## 1. Goal & scope
