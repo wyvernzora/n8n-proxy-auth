@@ -26,7 +26,7 @@
 # Dex's authorization-code login form — NOT achievable with a single curl POST. So the live-token
 # steps are best-effort: if no session is obtained in $OIDC_LOGIN_ATTEMPTS attempts, the phase
 # PASSES on the mandatory tier and the live-token + through-Pomerium positives are documented-skip
-# (capture them manually per operations.md, or via the optional Playwright UI smoke).
+# (capture them manually per docs/maintenance.md, or via the optional Playwright UI smoke).
 #
 #   usage: scripts/e2e.pomerium.sh [image-tag]   (default: n8n-proxy-auth:test)
 set -euo pipefail
@@ -134,7 +134,7 @@ SETUP_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DIAG_BASE/rest/ow
 # Pomerium uses the authorization-code flow, so a real session needs Dex's login FORM driven, which
 # a single curl POST cannot do reliably. If no session is obtained programmatically there is no live
 # token: the live-token steps (6) and the through-Pomerium probe (8) are documented-skip, the
-# deterministic mandatory tier still passes, and operations.md documents the manual/Playwright
+# deterministic mandatory tier still passes, and docs/maintenance.md documents the manual/Playwright
 # capture path (a browser login + /.pomerium/jwt copy).
 # ---------------------------------------------------------------------------
 PROBE_PATH="/rest/login"
@@ -250,7 +250,7 @@ if [ -n "$LIVE_TOKEN" ]; then
     fail "[best-effort] direct-feed of the LIVE assertion produced no Set-Cookie n8n-auth — a real assertion was captured but rejected; check the captured iss/aud above against the verifier wiring"
   fi
 else
-  echo "==> [best-effort] no LIVE Pomerium assertion captured (OIDC login did not complete in $OIDC_LOGIN_ATTEMPTS attempts; the in-container signing-JWKS fetch DID succeed) — DOCUMENTED-SKIP (mandatory tier still proves the path; see operations.md for the manual /.pomerium/jwt capture)"
+  echo "==> [best-effort] no LIVE Pomerium assertion captured (OIDC login did not complete in $OIDC_LOGIN_ATTEMPTS attempts; the in-container signing-JWKS fetch DID succeed) — DOCUMENTED-SKIP (mandatory tier still proves the path; see docs/maintenance.md for the manual /.pomerium/jwt capture)"
 fi
 
 # ---------------------------------------------------------------------------

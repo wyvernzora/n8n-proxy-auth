@@ -2,8 +2,8 @@
 # patched image to GHCR.
 #
 # CONTRACT: the gate job id AND its rendered name are both `e2e`. That literal string is the
-# required-status-check that branch protection enforces (see docs/operations.md). Renaming the job
-# is a BREAKING change — update the branch-protection rule and docs/operations.md in lockstep, or
+# required-status-check that branch protection enforces (see docs/maintenance.md). Renaming the job
+# is a BREAKING change — update the branch-protection rule and docs/maintenance.md in lockstep, or
 # Renovate auto-merge silently loses its only safety interlock.
 name: build-test-publish
 

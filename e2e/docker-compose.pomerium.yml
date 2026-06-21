@@ -23,7 +23,7 @@ services:
       - ./pomerium/.generated/tls-key.pem:/tls/tls-key.pem:ro
     ports:
       # Publish Dex on the host so a client-driven OIDC login (browser/Playwright, or the manual
-      # capture in operations.md) can reach the login form directly. Pomerium reaches Dex over the
+      # capture in docs/maintenance.md) can reach the login form directly. Pomerium reaches Dex over the
       # compose network either way; the host publish is ONLY for the client hop of the auth-code
       # flow (the IdP login page the user fills in). The mandatory/deterministic tier never needs it.
       - '5556:5556'
