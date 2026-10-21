@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "jose": "6.2.3"
+    "jose": "6.2.13"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
