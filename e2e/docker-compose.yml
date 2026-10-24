@@ -15,13 +15,13 @@ services:
       - proxy-auth-hook:/out
 
   mock-jwks:
-    image: nginx:alpine
+    image: nginx:alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
     volumes:
       - ./mock-jwks/jwks.json:/usr/share/nginx/html/jwks.json:ro
     # No published port — reachable only by the n8n container via compose DNS.
 
   n8n:
-    image: ${N8N_IMAGE:-n8nio/n8n:2.26.8}
+    image: ${N8N_IMAGE:-n8nio/n8n:2.26.8@sha256:0afb71a39e51637b4d5b4010d90e68bc502d3ca1d2a4d953eb5fcd7d86330ccd}
     depends_on:
       hook:
         condition: service_completed_successfully
