@@ -19,7 +19,7 @@ services:
       - proxy-auth-hook:/out
 
   dex:
-    image: dexidp/dex:v2.39.1
+    image: dexidp/dex:v2.39.1@sha256:2c07866020c0058589456850a516785adba5992caf4efa02f96ec0a92593f940
     command: ['dex', 'serve', '/etc/dex/dex.yaml']
     volumes:
       # The Dex config is RENDERED by gen-pomerium.ts (committed template + a fresh bcrypt hash) so
@@ -39,7 +39,7 @@ services:
           - dex.pomerium.localhost
 
   pomerium:
-    image: pomerium/pomerium:v0.30.4
+    image: pomerium/pomerium:v0.30.4@sha256:4262b7fdcc99fe7a8c7e4987726510dc551693a88628c50d24ad485da9c90e84
     depends_on:
       - dex
       - n8n
@@ -73,7 +73,7 @@ services:
           - authenticate.pomerium.localhost
 
   n8n:
-    image: ${N8N_IMAGE:-n8nio/n8n:2.26.8}
+    image: ${N8N_IMAGE:-n8nio/n8n:2.26.8@sha256:0afb71a39e51637b4d5b4010d90e68bc502d3ca1d2a4d953eb5fcd7d86330ccd}
     depends_on:
       hook:
         condition: service_completed_successfully
